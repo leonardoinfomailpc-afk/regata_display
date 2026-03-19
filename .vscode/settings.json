@@ -1,0 +1,4 @@
+{
+  "C_Cpp.default.configurationProvider": "platformio.platformio-ide",
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/.pio/build/crowpanel_43/compile_commands.json"
+}
