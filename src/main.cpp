@@ -207,6 +207,8 @@ bool loadCalibration()
 
 void resetToFactoryDefaults()
 {
+  Serial.println(">>> RESET TO FACTORY DEFAULTS STARTING <<<");
+  
   g_settings.brightnessPct = kDefaultBrightnessPct;
   g_settings.fpsIndex = kDefaultFpsIndex;
   g_settings.powerSaveEnabled = false;
@@ -216,13 +218,16 @@ void resetToFactoryDefaults()
   g_rawEdgeBottom = 3900;
   
   prefs.begin("crowpanel", false);
+  prefs.clear();
   prefs.putBool("cal_ok", false);
   prefs.putUChar("set_brt", g_settings.brightnessPct);
   prefs.putUChar("set_fps", g_settings.fpsIndex);
   prefs.putBool("set_pwr", g_settings.powerSaveEnabled);
   prefs.end();
   
-  Serial.println("Factory defaults restored; calibration cleared");
+  Serial.printf("Factory defaults restored: brt=%d%% fps=%u pwr_save=%d; calibration cleared\n",
+    g_settings.brightnessPct, kFpsOptions[g_settings.fpsIndex], g_settings.powerSaveEnabled);
+  Serial.println(">>> RESET COMPLETE <<<");
 }
 
 void saveUiSettings()
@@ -831,17 +836,33 @@ void setup()
   pinMode(38, OUTPUT);
   digitalWrite(38, HIGH);
   
+  // Check GPIO37 boot control pin with double-read for stability
   pinMode(GPIO_BOOT_CONTROL, INPUT_PULLDOWN);
+  delay(200);
+  bool bootRead1 = (digitalRead(GPIO_BOOT_CONTROL) == HIGH);
   delay(100);
-  bool bootControlActive = (digitalRead(GPIO_BOOT_CONTROL) == HIGH);
+  bool bootRead2 = (digitalRead(GPIO_BOOT_CONTROL) == HIGH);
+  bool bootControlActive = (bootRead1 && bootRead2);
+  
   if (bootControlActive)
   {
-    Serial.println("Boot control pin (GPIO37) detected HIGH: resetting to factory defaults");
+    Serial.printf(">>> BOOT CONTROL DETECTED: GPIO%d is HIGH <<<\n", GPIO_BOOT_CONTROL);
+    Serial.println("Forcing factory reset and calibration mode");
     resetToFactoryDefaults();
+    delay(200);
+  }
+  else
+  {
+    Serial.println("GPIO37 normal state, loading saved settings");
   }
 
+  // Load settings from NVS (will use defaults if not found or after reset)
   loadUiSettings();
+  delay(100);
+  
+  // Apply brightness BEFORE display init
   applyBacklightBrightness();
+  Serial.printf("Brightness applied: %d%%, FPS: %d\n", g_settings.brightnessPct, kFpsOptions[g_settings.fpsIndex]);
 
   if (BATTERY_ADC_PIN >= 0)
   {
@@ -868,7 +889,7 @@ void setup()
   {
     if (bootControlActive)
     {
-      Serial.println("Starting calibration flow due to boot control pin");
+      Serial.println(">>> Starting calibration flow due to boot control pin <<<");
     }
     else
     {
@@ -887,6 +908,7 @@ void setup()
 
   g_uiInit = true;
   g_lastFrameMs = millis();
+  Serial.println("=== Setup complete, UI initialized ===\n");
 }
 
 void loop()
