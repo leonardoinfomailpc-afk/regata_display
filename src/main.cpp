@@ -247,7 +247,8 @@ void loadUiSettings()
   g_settings.powerSaveEnabled = prefs.getBool("set_pwr", false);
   prefs.end();
 
-  if (g_settings.brightnessPct > 100)
+  // Enforce brightness limits: minimum 5%, maximum 100%
+  if (g_settings.brightnessPct < 5 || g_settings.brightnessPct > 100)
   {
     g_settings.brightnessPct = kDefaultBrightnessPct;
   }
@@ -773,7 +774,7 @@ void handleSettingsTouch(uint16_t x, uint16_t y)
   // Brightness -
   if (x >= 260 && x < 288 && y >= (kSceneTop + 36) && y < (kSceneTop + 60))
   {
-    if (g_settings.brightnessPct >= 5)
+    if (g_settings.brightnessPct > 5)
     {
       g_settings.brightnessPct -= 5;
     }
