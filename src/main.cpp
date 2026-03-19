@@ -67,7 +67,9 @@ constexpr uint8_t kFpsOptions[] = {15, 30, 45, 60};
 constexpr size_t kFpsOptionsCount = sizeof(kFpsOptions) / sizeof(kFpsOptions[0]);
 
 constexpr uint8_t kDefaultBrightnessPct = 80;
-constexpr uint8_t kDefaultFpsIndex = 3;
+constexpr uint8_t kDefaultFpsIndex = 1;
+
+constexpr int GPIO_BOOT_CONTROL = 37;
 
 enum TouchAppMode
 {
@@ -201,6 +203,26 @@ bool loadCalibration()
   g_rawEdgeTop = top;
   g_rawEdgeBottom = bottom;
   return true;
+}
+
+void resetToFactoryDefaults()
+{
+  g_settings.brightnessPct = kDefaultBrightnessPct;
+  g_settings.fpsIndex = kDefaultFpsIndex;
+  g_settings.powerSaveEnabled = false;
+  g_rawEdgeLeft = 3900;
+  g_rawEdgeRight = 100;
+  g_rawEdgeTop = 120;
+  g_rawEdgeBottom = 3900;
+  
+  prefs.begin("crowpanel", false);
+  prefs.putBool("cal_ok", false);
+  prefs.putUChar("set_brt", g_settings.brightnessPct);
+  prefs.putUChar("set_fps", g_settings.fpsIndex);
+  prefs.putBool("set_pwr", g_settings.powerSaveEnabled);
+  prefs.end();
+  
+  Serial.println("Factory defaults restored; calibration cleared");
 }
 
 void saveUiSettings()
@@ -808,6 +830,15 @@ void setup()
   pinMode(2, OUTPUT);
   pinMode(38, OUTPUT);
   digitalWrite(38, HIGH);
+  
+  pinMode(GPIO_BOOT_CONTROL, INPUT_PULLDOWN);
+  delay(100);
+  bool bootControlActive = (digitalRead(GPIO_BOOT_CONTROL) == HIGH);
+  if (bootControlActive)
+  {
+    Serial.println("Boot control pin (GPIO37) detected HIGH: resetting to factory defaults");
+    resetToFactoryDefaults();
+  }
 
   loadUiSettings();
   applyBacklightBrightness();
@@ -833,18 +864,25 @@ void setup()
   touch.begin(touchSpi);
   touch.setRotation(0);
 
-  if (loadCalibration())
+  if (bootControlActive || !loadCalibration())
+  {
+    if (bootControlActive)
+    {
+      Serial.println("Starting calibration flow due to boot control pin");
+    }
+    else
+    {
+      Serial.println("No valid calibration in NVS, starting calibration flow");
+    }
+    enterCalibrationMode(false);
+  }
+  else
   {
     Serial.println("Calibration loaded from NVS");
     g_mode = TOUCH_MODE_UI;
     drawUiChrome();
     drawButtons();
     g_sceneNeedsRedraw = true;
-  }
-  else
-  {
-    Serial.println("No valid calibration in NVS, starting calibration flow");
-    enterCalibrationMode(false);
   }
 
   g_uiInit = true;
